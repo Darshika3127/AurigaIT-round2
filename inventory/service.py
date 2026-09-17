@@ -9,6 +9,7 @@ from .exceptions import (
     InsufficientStockError,
     ValidationError,
 )
+from .database import SQLiteDatabase
 from .models import Batch
 
 DateInput = Union[date, str]
@@ -17,8 +18,29 @@ DateInput = Union[date, str]
 class InventoryService:
     """Manage batches and dispense medicines using FEFO."""
 
-    def __init__(self) -> None:
-        self._batches: Dict[str, Batch] = {}
+    def __init__(self, database_path: str = "inventory.db") -> None:
+        self._database = SQLiteDatabase(database_path)
+        self._batches: Dict[str, Batch] = {
+            batch.batch_id: batch for batch in self._database.list_batches()
+        }
+
+    @property
+    def database(self) -> SQLiteDatabase:
+        """Return the shared database used by related services."""
+        return self._database
+
+    def close(self) -> None:
+        self._database.close()
+
+    def _sync_cache(self) -> None:
+        """Keep the legacy private batch view compatible with direct test access."""
+        for batch in self._batches.values():
+            self._database.update_batch(batch)
+
+    def _refresh_cache(self) -> None:
+        self._batches = {
+            batch.batch_id: batch for batch in self._database.list_batches()
+        }
 
     def add_batch(
         self,
@@ -27,28 +49,30 @@ class InventoryService:
         expiry_date: DateInput,
         quantity: int,
     ) -> Batch:
-        """Validate and add a batch to the in-memory repository."""
+        """Validate and persist a batch."""
+        self._sync_cache()
         normalized_id = self._validate_batch_id(batch_id)
         normalized_name = self._validate_medicine_name(medicine_name)
         parsed_expiry = self._parse_date(expiry_date)
         self._validate_quantity(quantity)
 
-        if normalized_id in self._batches:
-            raise DuplicateBatchError(f"Batch ID already exists: {normalized_id}")
-
         batch = Batch(normalized_id, normalized_name, parsed_expiry, quantity)
-        self._batches[normalized_id] = batch
+        self._database.insert_batch(batch)
+        self._refresh_cache()
         return deepcopy(batch)
 
     def list_batches(self) -> List[Batch]:
         """Return all batches without exposing repository objects for mutation."""
+        self._sync_cache()
+        self._refresh_cache()
         return [deepcopy(batch) for batch in self._batches.values()]
 
     def run_clock(self, today: DateInput = None) -> dict:
         """Quarantine expired batches and report the seven-day expiry window."""
+        self._sync_cache()
         current_date = self._parse_date(today if today is not None else date.today())
         last_alert_date = current_date + timedelta(days=7)
-        batches = list(self._batches.values())
+        batches = self._database.list_batches()
         approaching = [
             batch
             for batch in batches
@@ -56,11 +80,8 @@ class InventoryService:
             and current_date <= batch.expiry_date <= last_alert_date
         ]
         already_quarantined = sum(batch.quarantined for batch in batches)
-        newly_quarantined = []
-        for batch in batches:
-            if batch.expiry_date < current_date and not batch.quarantined:
-                batch.quarantined = True
-                newly_quarantined.append(batch.batch_id)
+        newly_quarantined = self._database.quarantine_expired(current_date)
+        self._refresh_cache()
 
         return {
             "today": current_date.isoformat(),
@@ -83,6 +104,7 @@ class InventoryService:
         The availability check happens before any quantity is changed, so an
         unsuccessful request leaves every batch exactly as it was.
         """
+        self._sync_cache()
         normalized_name = self._validate_medicine_name(medicine_name)
         self._validate_quantity(quantity)
         current_date = self._parse_date(today if today is not None else date.today())
@@ -100,12 +122,16 @@ class InventoryService:
             amount = min(batch.quantity, remaining)
             if amount == 0:
                 break
-            batch.quantity -= amount
             dispensed.append(
                 Batch(batch.batch_id, batch.medicine_name, batch.expiry_date, amount)
             )
             remaining -= amount
 
+        self._database.update_quantities(
+            (batch.batch_id, item.quantity)
+            for batch, item in zip(valid_batches, dispensed)
+        )
+        self._refresh_cache()
         return dispensed
 
     def sellable_stock(
@@ -114,6 +140,7 @@ class InventoryService:
         today: DateInput = None,
     ) -> int:
         """Return the quantity in batches that have not expired."""
+        self._sync_cache()
         normalized_name = self._validate_medicine_name(medicine_name)
         current_date = self._parse_date(today if today is not None else date.today())
         return sum(
@@ -121,7 +148,6 @@ class InventoryService:
             for batch in self._batches.values()
             if batch.medicine_name.casefold() == normalized_name.casefold()
             and batch.expiry_date >= current_date
-            and not batch.quarantined
             and not batch.quarantined
         )
 
@@ -131,6 +157,7 @@ class InventoryService:
         today: DateInput = None,
     ) -> dict:
         """Return availability, sellable quantity, and current valid batches."""
+        self._sync_cache()
         normalized_name = self._validate_medicine_name(medicine_name)
         current_date = self._parse_date(today if today is not None else date.today())
         batches = self._fefo_batches(normalized_name, current_date)
@@ -147,6 +174,7 @@ class InventoryService:
         today: DateInput = None,
     ) -> List[Batch]:
         """Return valid batches expiring within the requested number of days."""
+        self._sync_cache()
         if not isinstance(days, int) or isinstance(days, bool) or days < 0:
             raise ValidationError("Alert days must be a non-negative integer")
 
@@ -170,6 +198,7 @@ class InventoryService:
             if batch.medicine_name.casefold() == medicine_name.casefold()
             and batch.expiry_date >= today
             and batch.quantity > 0
+            and not batch.quarantined
         ]
         return sorted(matching, key=lambda item: (item.expiry_date, item.batch_id))
 

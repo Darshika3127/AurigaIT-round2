@@ -16,7 +16,7 @@ TODAY = date(2026, 9, 17)
 
 class InventoryServiceTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.inventory = InventoryService()
+        self.inventory = InventoryService(":memory:")
 
     def test_add_and_list_batch(self) -> None:
         batch = self.inventory.add_batch("B-1", "Paracetamol", "2026-10-01", 20)

@@ -11,7 +11,7 @@ class NotificationServiceTests(unittest.TestCase):
     TODAY = date(2026, 9, 17)
 
     def setUp(self) -> None:
-        self.inventory = InventoryService()
+        self.inventory = InventoryService(":memory:")
         self.notifications = NotificationService()
         self.inventory.add_batch("B-1", "Paracetamol", date(2026, 10, 1), 10)
         self.notifications.set_threshold("paracetamol", 10)

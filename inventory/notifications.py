@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 from datetime import date
 from typing import Dict, List, Optional
 
+from .database import SQLiteDatabase
 from .exceptions import ValidationError
 from .service import InventoryService
 
@@ -24,17 +25,14 @@ class Notification:
 class NotificationService:
     """Track reorder thresholds and create one notification per low-stock state."""
 
-    def __init__(self) -> None:
-        self._thresholds: Dict[str, tuple[str, int]] = {}
-        self._low_stock_active: set[str] = set()
-        self._outbox: List[Notification] = []
-        self._next_id = 1
+    def __init__(self, database: Optional[SQLiteDatabase] = None) -> None:
+        self._database = database or SQLiteDatabase(":memory:")
 
     def set_threshold(self, medicine_name: str, threshold: int) -> dict:
         normalized_name = self._validate_name(medicine_name)
         self._validate_threshold(threshold)
         key = normalized_name.casefold()
-        self._thresholds[key] = (normalized_name, threshold)
+        self._database.set_threshold(key, normalized_name, threshold)
         return {"medicine_name": normalized_name, "threshold": threshold}
 
     def evaluate(
@@ -47,19 +45,19 @@ class NotificationService:
         if not isinstance(sellable_quantity, int) or sellable_quantity < 0:
             raise ValidationError("Sellable stock must be a non-negative integer")
         key = normalized_name.casefold()
-        configured = self._thresholds.get(key)
+        configured = self._database.get_threshold(key)
         if configured is None:
             return None
 
         display_name, threshold = configured
         if sellable_quantity >= threshold:
-            self._low_stock_active.discard(key)
+            self._database.set_low_stock_active(key, False)
             return None
-        if key in self._low_stock_active:
+        if self._database.low_stock_active(key):
             return None
 
         notification = Notification(
-            notification_id=f"REORDER-{self._next_id}",
+            notification_id=self._database.next_notification_id(),
             medicine_name=display_name,
             current_sellable_stock=sellable_quantity,
             threshold=threshold,
@@ -70,9 +68,19 @@ class NotificationService:
             ),
             created_date=today or date.today(),
         )
-        self._next_id += 1
-        self._low_stock_active.add(key)
-        self._outbox.append(notification)
+        self._database.insert_notification(
+            (
+                notification.notification_id,
+                notification.medicine_name,
+                notification.current_sellable_stock,
+                notification.threshold,
+                notification.notification_type,
+                notification.message,
+                notification.created_date.isoformat(),
+                notification.status,
+            )
+        )
+        self._database.set_low_stock_active(key, True)
         return deepcopy(notification)
 
     def evaluate_after_dispense(
@@ -85,7 +93,19 @@ class NotificationService:
         return self.evaluate(medicine_name, stock, today)
 
     def list_notifications(self) -> List[Notification]:
-        return [deepcopy(notification) for notification in self._outbox]
+        return [
+            Notification(
+                notification_id=row["notification_id"],
+                medicine_name=row["medicine_name"],
+                current_sellable_stock=row["current_sellable_stock"],
+                threshold=row["threshold"],
+                notification_type=row["notification_type"],
+                message=row["message"],
+                created_date=date.fromisoformat(row["created_date"]),
+                status=row["status"],
+            )
+            for row in self._database.list_notifications()
+        ]
 
     @staticmethod
     def _validate_name(medicine_name: str) -> str:

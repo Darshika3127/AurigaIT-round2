@@ -8,7 +8,7 @@ from inventory.service import InventoryService
 
 class FlaskApiTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.client = create_app(InventoryService()).test_client()
+        self.client = create_app(InventoryService(":memory:")).test_client()
 
     def add_batch(self, batch_id: str, medicine: str, expiry: str, quantity: int):
         return self.client.post(

@@ -2,7 +2,8 @@
 
 This project is a small pharmacy inventory application. It combines a tested
 Python domain service with a Flask JSON API and a vanilla HTML/CSS/JavaScript
-dashboard. It uses an in-memory repository, so data resets on restart.
+dashboard. It uses SQLite persistence, so inventory and notification state
+survive application restarts.
 
 ## Features
 
@@ -30,7 +31,7 @@ expiry date is before today.
 - Python built-in `unittest`
 - Flask
 - HTML, CSS, and vanilla JavaScript
-- In-memory storage
+- SQLite storage using Python's standard-library `sqlite3`
 
 ## Project structure
 
@@ -41,6 +42,7 @@ expiry date is before today.
 ├── requirements.txt
 ├── inventory/
 │   ├── exceptions.py
+│   ├── database.py
 │   ├── importer.py
 │   ├── models.py
 │   ├── notifications.py
@@ -51,6 +53,7 @@ expiry date is before today.
   ├── test_app.py
   ├── test_importer.py
   ├── test_inventory.py
+  ├── test_persistence.py
   └── test_notifications.py
 ```
 
@@ -64,6 +67,11 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
+
+No additional database server or Python database package is required. The
+application creates `inventory.db` and its tables automatically on first start.
+The database file is ignored by git and should be backed up separately for a
+production deployment.
 
 ## Run the application
 
@@ -83,7 +91,14 @@ Run all core and Flask API tests with:
 python -m unittest discover -s tests -v
 ```
 
-## FEFO and expiry policy
+## Persistence, FEFO, and expiry policy
+
+`InventoryService` uses a SQLite repository underneath its existing public
+methods. The default Flask application uses `inventory.db`; records are loaded
+when the service starts. Tests and callers can pass `":memory:"` as the database
+path for an isolated temporary database. Batch IDs are primary keys, and stock
+updates, quarantine changes, imports, reorder thresholds, notification state,
+and outbox records are committed to SQLite.
 
 `InventoryService.dispense` filters to the requested medicine's batches whose
 expiry date is today or later, sorts them by `(expiry_date, batch_id)`, and
@@ -186,8 +201,10 @@ does not prevent other valid rows from importing.
 medicine. After successful dispensing, a notification is created when
 `sellable_stock < threshold`. The same unchanged low-stock condition produces
 only one pending notification. If stock reaches the threshold and later drops
-below it again, a new notification may be created. Notifications are held in
-the in-memory `/outbox`.
+below it again, a new notification may be created. Notifications are stored in
+the SQLite outbox table and remain available after a restart. Low-stock state is
+also persisted, preventing duplicates after a restart while the condition is
+unchanged.
 
 ## Technical interview explanation
 
@@ -214,7 +231,8 @@ callers can use a deterministic current date.
 
 ## Known limitations and future improvements
 
-- Data is held in memory and is lost when the process exits.
+- The default SQLite database is local to the application process and does not
+  provide multi-instance deployment coordination.
 - Authentication, users, and audit history are not included.
 - A production version could add persistent storage, migrations, authorization,
   audit events, pagination, and deployment configuration.

@@ -8,7 +8,7 @@ from inventory.service import InventoryService
 
 class BatchImportServiceTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.inventory = InventoryService()
+        self.inventory = InventoryService(":memory:")
         self.importer = BatchImportService(self.inventory)
 
     def test_imports_messy_quantities_and_supported_dates(self) -> None:

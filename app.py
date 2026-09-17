@@ -22,11 +22,14 @@ def _batch_to_dict(batch: Any) -> dict:
     return data
 
 
-def create_app(service: Optional[InventoryService] = None) -> Flask:
+def create_app(
+    service: Optional[InventoryService] = None,
+    database_path: str = "inventory.db",
+) -> Flask:
     app = Flask(__name__)
-    inventory = service or InventoryService()
+    inventory = service or InventoryService(database_path)
     importer = BatchImportService(inventory)
-    notifications = NotificationService()
+    notifications = NotificationService(inventory.database)
 
     @app.get("/")
     def index():
