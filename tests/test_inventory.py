@@ -118,6 +118,51 @@ class InventoryServiceTests(unittest.TestCase):
         with self.assertRaises(DuplicateBatchError):
             self.inventory.add_batch("B-1", "Other Medicine", TODAY, 1)
 
+    def test_clock_reports_batches_expiring_within_seven_days(self) -> None:
+        self.inventory.add_batch("TODAY", "Medicine", TODAY, 1)
+        self.inventory.add_batch("SOON", "Medicine", date(2026, 9, 24), 1)
+        self.inventory.add_batch("LATER", "Medicine", date(2026, 9, 25), 1)
+
+        report = self.inventory.run_clock(TODAY)
+
+        self.assertEqual(report["batches_checked"], 3)
+        self.assertEqual(report["expiring_within_7_days"], 2)
+        self.assertEqual(
+            [batch.batch_id for batch in report["approaching_batches"]],
+            ["TODAY", "SOON"],
+        )
+
+    def test_clock_quarantines_expired_batches_once(self) -> None:
+        self.inventory.add_batch("OLD", "Medicine", date(2026, 9, 16), 5)
+
+        first = self.inventory.run_clock(TODAY)
+        second = self.inventory.run_clock(TODAY)
+
+        self.assertEqual(first["newly_quarantined_batch_ids"], ["OLD"])
+        self.assertEqual(first["quarantined"], 1)
+        self.assertEqual(second["newly_quarantined_batch_ids"], [])
+        self.assertEqual(second["already_quarantined"], 1)
+
+    def test_quarantined_batches_are_excluded_from_stock_and_fefo(self) -> None:
+        self.inventory.add_batch("OLD", "Medicine", date(2026, 9, 16), 5)
+        self.inventory.add_batch("VALID", "Medicine", date(2026, 9, 20), 5)
+        self.inventory.run_clock(TODAY)
+
+        self.assertEqual(self.inventory.sellable_stock("Medicine", TODAY), 5)
+        self.assertEqual(
+            [batch.batch_id for batch in self.inventory.dispense("Medicine", 5, TODAY)],
+            ["VALID"],
+        )
+
+    def test_pre_quarantined_batches_are_reported_without_requarantining(self) -> None:
+        batch = self.inventory.add_batch("OLD", "Medicine", date(2026, 9, 16), 5)
+        self.inventory._batches[batch.batch_id].quarantined = True
+
+        report = self.inventory.run_clock(TODAY)
+
+        self.assertEqual(report["already_quarantined"], 1)
+        self.assertEqual(report["quarantined"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

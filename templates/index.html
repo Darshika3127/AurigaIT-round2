@@ -3,90 +3,199 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pharmacy Inventory</title>
+  <title>Pharmacy Inventory Dashboard</title>
   <style>
-    body { font-family: sans-serif; margin: 2rem auto; max-width: 900px; padding: 0 1rem; }
-    section { border: 1px solid #ddd; margin: 1rem 0; padding: 1rem; }
-    form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
-    input, button { padding: .5rem; }
-    button { cursor: pointer; }
-    pre { background: #f5f5f5; padding: 1rem; white-space: pre-wrap; }
+    :root { color-scheme: light; font-family: system-ui, sans-serif; }
+    body { background: #f4f7f6; color: #18312b; margin: 0; }
+    header, main { margin: auto; max-width: 1100px; padding: 1.5rem; }
+    header { align-items: center; display: flex; justify-content: space-between; }
+    h1, h2 { margin-top: 0; }
+    .muted { color: #1b2926; }
+    .cards, .layout { display: grid; gap: 1rem; }
+    .cards { grid-template-columns: repeat(3, 1fr); }
+    .layout { grid-template-columns: repeat(2, 1fr); margin-top: 1rem; }
+    .panel, .card { background: white; border: 1px solid #d9e4df; border-radius: 8px; padding: 1rem; }
+    .card strong { display: block; font-size: 1.8rem; margin-top: .25rem; }
+    form { display: grid; gap: .7rem; }
+    label { display: grid; gap: .3rem; font-weight: 600; }
+    input, button { border: 1px solid#d59eee; border-radius: 4px; box-sizing: border-box; font: inherit; padding: .6rem; }
+    button { background: #d59eee; color: white; cursor: pointer; font-weight: 700; }
+    button.secondary { background: white; color:  #d59eee; }
+    button:hover { background: #0f513f; }
+    .actions { display: flex; gap: .6rem; flex-wrap: wrap; }
+    .message { min-height: 1.4rem; margin: .5rem 0; }
+    .error { color: #a32929; }
+    .success { color: #d59eee; }
+    table { border-collapse: collapse; margin-top: 1rem; width: 100%; }
+    th, td { border-bottom: 1px solid #e1e9e6; padding: .7rem; text-align: left; }
+    th { color: #18312b; font-size: .85rem; text-transform: uppercase; }
+    .status { border-radius: 999px; display: inline-block; font-size: .8rem; padding: .2rem .55rem; }
+    .sellable { background: #dff3e9; color: #d59eee; }
+    .expired { background: #fbe4e4; color: #a32929; }
+    .empty { color: #d59eee; padding: 1rem 0; }
+    @media (max-width: 700px) { header { align-items: flex-start; flex-direction: column; gap: .8rem; } .cards, .layout { grid-template-columns: 1fr; } table { font-size: .9rem; } }
   </style>
 </head>
 <body>
-  <h1>Pharmacy Inventory</h1>
+  <header>
+    <div><h1>Pharmacy Inventory</h1><div class="muted">FEFO dispensing and expiry monitoring</div></div>
+    <button class="secondary" id="refresh">Refresh inventory</button>
+  </header>
+  <main>
+    <div class="cards" aria-label="Inventory summary">
+      <div class="card"><span class="muted">Total batches</span><strong id="total-batches">0</strong></div>
+      <div class="card"><span class="muted">Sellable stock</span><strong id="sellable-stock">0</strong></div>
+      <div class="card"><span class="muted">Medicines</span><strong id="medicine-count">0</strong></div>
+    </div>
 
-  <section>
-    <h2>Add batch</h2>
-    <form data-endpoint="/batches" data-method="POST">
-      <input name="batch_id" placeholder="Batch ID" required>
-      <input name="medicine_name" placeholder="Medicine name" required>
-      <input name="expiry_date" type="date" required>
-      <input name="quantity" type="number" min="1" placeholder="Quantity" required>
-      <button type="submit">Add batch</button>
-    </form>
-  </section>
+    <p id="message" class="message" role="status"></p>
+    <div class="layout">
+      <section class="panel"><h2>Add batch</h2>
+        <form id="add-form">
+          <label>Batch ID<input name="batch_id" required></label>
+          <label>Medicine name<input name="medicine_name" required></label>
+          <label>Expiry date<input name="expiry_date" type="date" required></label>
+          <label>Quantity<input name="quantity" type="number" min="1" required></label>
+          <button>Add batch</button>
+        </form>
+      </section>
+      <section class="panel"><h2>Dispense medicine</h2>
+        <form id="dispense-form">
+          <label>Medicine name<input name="medicine_name" required></label>
+          <label>Quantity<input name="quantity" type="number" min="1" required></label>
+          <button>Dispense using FEFO</button>
+        </form>
+        <pre id="dispense-result" class="muted" aria-live="polite"></pre>
+      </section>
+      <section class="panel"><h2>Medicine search</h2>
+        <form id="search-form">
+          <label>Medicine name<input name="name" required></label>
+          <button>Search availability</button>
+        </form>
+        <pre id="search-result" class="muted" aria-live="polite"></pre>
+      </section>
+      <section class="panel"><h2>Expiry alerts</h2>
+        <form id="alerts-form">
+          <label>Days ahead<input name="days" type="number" min="0" value="7" required></label>
+          <button>Show alerts</button>
+        </form>
+        <pre id="alerts-result" class="muted" aria-live="polite"></pre>
+      </section>
+      <section class="panel"><h2>Daily clock</h2>
+        <form id="clock-form">
+          <label>Date (optional)<input name="today" type="date"></label>
+          <button>Run clock</button>
+        </form>
+        <pre id="clock-result" class="muted" aria-live="polite"></pre>
+      </section>
+      <section class="panel"><h2>Import data</h2>
+        <form id="import-form">
+          <label>JSON batch array<textarea name="records" rows="7" required>[{"batch_id":"IMPORT-1","medicine_name":"Paracetamol","expiry_date":"2026-10-01","quantity":"10 units"}]</textarea></label>
+          <button>Import data</button>
+        </form>
+        <pre id="import-result" class="muted" aria-live="polite"></pre>
+      </section>
+      <section class="panel"><h2>Reorder threshold</h2>
+        <form id="threshold-form">
+          <label>Medicine name<input name="medicine_name" required></label>
+          <label>Threshold<input name="threshold" type="number" min="0" required></label>
+          <button>Save threshold</button>
+        </form>
+      </section>
+      <section class="panel"><h2>Notification outbox</h2>
+        <button class="secondary" id="refresh-outbox">Refresh notifications</button>
+        <pre id="outbox-result" class="muted" aria-live="polite"></pre>
+      </section>
+    </div>
 
-  <section>
-    <h2>Dispense</h2>
-    <form data-endpoint="/dispense" data-method="POST">
-      <input name="medicine_name" placeholder="Medicine name" required>
-      <input name="quantity" type="number" min="1" placeholder="Quantity" required>
-      <button type="submit">Dispense</button>
-    </form>
-  </section>
-
-  <section>
-    <h2>Lookups</h2>
-    <form data-action="batches"><button type="submit">View all batches</button></form>
-    <form data-action="stock">
-      <input name="name" placeholder="Medicine name" required>
-      <button type="submit">Check stock</button>
-    </form>
-    <form data-action="search">
-      <input name="name" placeholder="Medicine name" required>
-      <button type="submit">Search</button>
-    </form>
-    <form data-action="alerts">
-      <input name="days" type="number" min="0" value="7" required>
-      <button type="submit">View expiry alerts</button>
-    </form>
-  </section>
-
-  <h2>Result</h2>
-  <pre id="result">Use a form above to make a request.</pre>
+    <section class="panel" style="margin-top: 1rem"><h2>Inventory</h2>
+      <div id="inventory-empty" class="empty">No batches have been added yet.</div>
+      <div style="overflow-x:auto"><table id="inventory-table" hidden>
+        <thead><tr><th>Batch ID</th><th>Medicine</th><th>Expiry</th><th>Quantity</th><th>Status</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </section>
+  </main>
   <script>
-    const result = document.getElementById('result');
-
-    async function showResponse(response) {
+    const message = document.getElementById('message');
+    const request = (url, options) => fetch(url, options).then(async (response) => {
       const data = await response.json();
-      result.textContent = JSON.stringify(data, null, 2);
+      if (!response.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    });
+    const api = (path, options) => request(`/api${path}`, options);
+    const formData = (form) => {
+      const data = Object.fromEntries(new FormData(form));
+      if (data.quantity) data.quantity = Number(data.quantity);
+      if (data.days) data.days = Number(data.days);
+      return data;
+    };
+    function showMessage(text, isError = false) {
+      message.textContent = text;
+      message.className = `message ${isError ? 'error' : 'success'}`;
+    }
+    function printResult(id, value) { document.getElementById(id).textContent = JSON.stringify(value, null, 2); }
+
+    async function refreshInventory() {
+      const data = await api('/batches');
+      const batches = data.batches;
+      const medicines = [...new Set(batches.map((batch) => batch.medicine_name.toLowerCase()))];
+      const stockResults = await Promise.all(medicines.map((name) => api(`/search?name=${encodeURIComponent(name)}`)));
+      document.getElementById('total-batches').textContent = batches.length;
+      document.getElementById('medicine-count').textContent = medicines.length;
+      document.getElementById('sellable-stock').textContent = stockResults.reduce((sum, item) => sum + item.sellable_quantity, 0);
+      const table = document.getElementById('inventory-table');
+      const empty = document.getElementById('inventory-empty');
+      table.hidden = batches.length === 0; empty.hidden = batches.length !== 0;
+      table.querySelector('tbody').innerHTML = batches.map((batch) => {
+        const expired = new Date(`${batch.expiry_date}T23:59:59`) < new Date();
+        const quarantined = batch.quarantined;
+        const status = quarantined ? 'Quarantined' : expired ? 'Expired' : 'Sellable';
+        return `<tr><td>${batch.batch_id}</td><td>${batch.medicine_name}</td><td>${batch.expiry_date}</td><td>${batch.quantity}</td><td><span class="status ${quarantined || expired ? 'expired' : 'sellable'}">${status}</span></td></tr>`;
+      }).join('');
     }
 
-    document.querySelectorAll('form[data-endpoint]').forEach((form) => {
-      form.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const body = Object.fromEntries(new FormData(form));
-        if (body.quantity) body.quantity = Number(body.quantity);
-        await showResponse(await fetch(form.dataset.endpoint, {
-          method: form.dataset.method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        }));
-      });
+    document.getElementById('add-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try { await api('/batches', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(formData(event.target)) }); event.target.reset(); showMessage('Batch added.'); await refreshInventory(); }
+      catch (error) { showMessage(error.message, true); }
     });
-
-    document.querySelectorAll('form[data-action]').forEach((form) => {
-      form.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const values = Object.fromEntries(new FormData(form));
-        let url = '/batches';
-        if (form.dataset.action === 'stock') url = `/stock/${encodeURIComponent(values.name)}`;
-        if (form.dataset.action === 'search') url = `/search?name=${encodeURIComponent(values.name)}`;
-        if (form.dataset.action === 'alerts') url = `/alerts?days=${encodeURIComponent(values.days)}`;
-        await showResponse(await fetch(url));
-      });
+    document.getElementById('dispense-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try { const data = await api('/dispense', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(formData(event.target)) }); printResult('dispense-result', data); showMessage('Medicine dispensed.'); await refreshInventory(); }
+      catch (error) { showMessage(error.message, true); printResult('dispense-result', {error: error.message}); }
     });
+    document.getElementById('search-form').addEventListener('submit', async (event) => {
+      event.preventDefault(); try { printResult('search-result', await api(`/search?name=${encodeURIComponent(new FormData(event.target).get('name'))}`)); } catch (error) { printResult('search-result', {error: error.message}); }
+    });
+    document.getElementById('alerts-form').addEventListener('submit', async (event) => {
+      event.preventDefault(); try { printResult('alerts-result', await api(`/alerts?days=${Number(new FormData(event.target).get('days'))}`)); } catch (error) { printResult('alerts-result', {error: error.message}); }
+    });
+    document.getElementById('clock-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const value = new FormData(event.target).get('today');
+      try { printResult('clock-result', await request('/clock', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(value ? {today: value} : {}) })); await refreshInventory(); showMessage('Clock completed.'); }
+      catch (error) { printResult('clock-result', {error: error.message}); showMessage(error.message, true); }
+    });
+    document.getElementById('import-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        const records = JSON.parse(new FormData(event.target).get('records'));
+        printResult('import-result', await api('/import', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(records) }));
+        await refreshInventory(); showMessage('Import completed.');
+      } catch (error) { printResult('import-result', {error: error.message}); showMessage(error.message, true); }
+    });
+    document.getElementById('threshold-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const values = Object.fromEntries(new FormData(event.target)); values.threshold = Number(values.threshold);
+      try { printResult('outbox-result', await api('/reorder-thresholds', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(values) })); showMessage('Reorder threshold saved.'); }
+      catch (error) { printResult('outbox-result', {error: error.message}); showMessage(error.message, true); }
+    });
+    document.getElementById('refresh-outbox').addEventListener('click', async () => {
+      try { printResult('outbox-result', await request('/outbox')); } catch (error) { printResult('outbox-result', {error: error.message}); }
+    });
+    document.getElementById('refresh').addEventListener('click', () => refreshInventory().then(() => showMessage('Inventory refreshed.')).catch((error) => showMessage(error.message, true)));
+    refreshInventory().catch((error) => showMessage(error.message, true));
   </script>
 </body>
 </html>

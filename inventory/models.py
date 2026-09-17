@@ -12,3 +12,4 @@ class Batch:
     medicine_name: str
     expiry_date: date
     quantity: int
+    quarantined: bool = False

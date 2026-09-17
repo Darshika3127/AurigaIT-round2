@@ -44,6 +44,34 @@ class InventoryService:
         """Return all batches without exposing repository objects for mutation."""
         return [deepcopy(batch) for batch in self._batches.values()]
 
+    def run_clock(self, today: DateInput = None) -> dict:
+        """Quarantine expired batches and report the seven-day expiry window."""
+        current_date = self._parse_date(today if today is not None else date.today())
+        last_alert_date = current_date + timedelta(days=7)
+        batches = list(self._batches.values())
+        approaching = [
+            batch
+            for batch in batches
+            if not batch.quarantined
+            and current_date <= batch.expiry_date <= last_alert_date
+        ]
+        already_quarantined = sum(batch.quarantined for batch in batches)
+        newly_quarantined = []
+        for batch in batches:
+            if batch.expiry_date < current_date and not batch.quarantined:
+                batch.quarantined = True
+                newly_quarantined.append(batch.batch_id)
+
+        return {
+            "today": current_date.isoformat(),
+            "batches_checked": len(batches),
+            "expiring_within_7_days": len(approaching),
+            "quarantined": len(newly_quarantined),
+            "already_quarantined": already_quarantined,
+            "approaching_batches": [deepcopy(batch) for batch in approaching],
+            "newly_quarantined_batch_ids": newly_quarantined,
+        }
+
     def dispense(
         self,
         medicine_name: str,
@@ -93,6 +121,8 @@ class InventoryService:
             for batch in self._batches.values()
             if batch.medicine_name.casefold() == normalized_name.casefold()
             and batch.expiry_date >= current_date
+            and not batch.quarantined
+            and not batch.quarantined
         )
 
     def search_medicine(
