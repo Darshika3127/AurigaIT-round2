@@ -2,11 +2,22 @@
 
 import sqlite3
 from datetime import date
+from functools import wraps
 from pathlib import Path
+from threading import RLock
 from typing import Iterable, List, Optional, Tuple
 
 from .exceptions import DuplicateBatchError
 from .models import Batch
+
+
+def _synchronized(method):
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return wrapper
 
 
 class SQLiteDatabase:
@@ -15,7 +26,8 @@ class SQLiteDatabase:
     def __init__(self, path: str = "inventory.db") -> None:
         if path != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(path)
+        self._lock = RLock()
+        self.connection = sqlite3.connect(path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self._create_schema()
 
@@ -52,12 +64,14 @@ class SQLiteDatabase:
         )
         self.connection.commit()
 
+    @_synchronized
     def list_batches(self) -> List[Batch]:
         rows = self.connection.execute(
             "SELECT * FROM batches ORDER BY rowid"
         ).fetchall()
         return [self._batch_from_row(row) for row in rows]
 
+    @_synchronized
     def insert_batch(self, batch: Batch) -> None:
         try:
             self.connection.execute(
@@ -81,6 +95,7 @@ class SQLiteDatabase:
                 f"Batch ID already exists: {batch.batch_id}"
             ) from error
 
+    @_synchronized
     def update_batch(self, batch: Batch) -> None:
         self.connection.execute(
             """
@@ -98,6 +113,7 @@ class SQLiteDatabase:
         )
         self.connection.commit()
 
+    @_synchronized
     def update_quantities(self, allocations: Iterable[Tuple[str, int]]) -> None:
         allocations = list(allocations)
         with self.connection:
@@ -113,6 +129,7 @@ class SQLiteDatabase:
                 if cursor.rowcount != 1:
                     raise ValueError(f"Unable to update batch: {batch_id}")
 
+    @_synchronized
     def quarantine_expired(self, current_date: date) -> List[str]:
         rows = self.connection.execute(
             """
@@ -133,6 +150,7 @@ class SQLiteDatabase:
             )
         return batch_ids
 
+    @_synchronized
     def get_threshold(self, medicine_key: str) -> Optional[Tuple[str, int]]:
         row = self.connection.execute(
             "SELECT medicine_name, threshold FROM reorder_thresholds WHERE medicine_key = ?",
@@ -140,6 +158,7 @@ class SQLiteDatabase:
         ).fetchone()
         return None if row is None else (row["medicine_name"], row["threshold"])
 
+    @_synchronized
     def set_threshold(self, medicine_key: str, medicine_name: str, threshold: int) -> None:
         with self.connection:
             self.connection.execute(
@@ -153,6 +172,7 @@ class SQLiteDatabase:
                 (medicine_key, medicine_name, threshold),
             )
 
+    @_synchronized
     def low_stock_active(self, medicine_key: str) -> bool:
         row = self.connection.execute(
             "SELECT low_stock_active FROM notification_state WHERE medicine_key = ?",
@@ -160,6 +180,7 @@ class SQLiteDatabase:
         ).fetchone()
         return bool(row["low_stock_active"]) if row is not None else False
 
+    @_synchronized
     def set_low_stock_active(self, medicine_key: str, active: bool) -> None:
         with self.connection:
             self.connection.execute(
@@ -172,6 +193,7 @@ class SQLiteDatabase:
                 (medicine_key, int(active)),
             )
 
+    @_synchronized
     def next_notification_id(self) -> str:
         row = self.connection.execute(
             """
@@ -182,6 +204,7 @@ class SQLiteDatabase:
         ).fetchone()
         return f"REORDER-{row['next_id']}"
 
+    @_synchronized
     def insert_notification(self, values: tuple) -> None:
         with self.connection:
             self.connection.execute(
@@ -194,6 +217,7 @@ class SQLiteDatabase:
                 values,
             )
 
+    @_synchronized
     def list_notifications(self) -> list:
         return self.connection.execute(
             "SELECT * FROM notifications ORDER BY rowid"
@@ -209,5 +233,6 @@ class SQLiteDatabase:
             quarantined=bool(row["quarantined"]),
         )
 
+    @_synchronized
     def close(self) -> None:
         self.connection.close()
