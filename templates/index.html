@@ -70,6 +70,9 @@
     input:focus, textarea:focus { border-color:var(--teal); box-shadow:0 0 0 3px rgba(8,127,107,.12); }
     textarea { line-height:1.5; min-height:150px; resize:vertical; }
     .form-actions { display:flex; gap:.6rem; justify-content:flex-start; }
+    .table-controls { align-items:end; display:flex; flex-wrap:wrap; gap:.6rem; margin-bottom:1rem; }
+    .table-controls label { min-width:120px; }
+    .table-controls select { background:#fbfdfc; border:1px solid #c9dad5; border-radius:7px; padding:.55rem; }
     .message { align-items:center; border-radius:7px; display:flex; font-size:.86rem; margin:0 0 1rem; min-height:0; padding:.75rem 1rem; }
     .message:empty { display:none; }
     .message.error { background:var(--red); color:var(--red-ink); }
@@ -134,7 +137,7 @@
       <div class="medical-doodle doodle-heartbeat" aria-hidden="true"><svg viewBox="0 0 120 40" fill="none"><path d="M2 22h25l7-16 10 28 9-19 7 7h22" stroke="#087f6b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M84 22h34" stroke="#087f6b" stroke-width="3" stroke-linecap="round"/></svg></div>
       <header class="topbar">
         <div><div class="eyebrow">Operations overview</div><h1 id="page-title">Dashboard</h1><p class="subtitle">Monitor stock, expiry, and replenishment in one place.</p></div>
-        <div class="top-actions"><span class="sync-state" id="sync-state">Ready</span><button class="secondary" id="refresh">↻ Refresh</button></div>
+        <div class="top-actions"><span class="sync-state" id="sync-state">Ready</span><button class="secondary" id="refresh">↻ Refresh</button><button class="secondary" id="logout">Log out</button></div>
       </header>
       <div id="message" class="message" role="status" aria-live="polite"></div>
       <div id="loading" class="loading" aria-live="polite" hidden><span class="spinner loading-spinner"></span>Syncing inventory…</div>
@@ -153,7 +156,7 @@
           <section class="panel" style="margin-top:1rem"><div class="panel-header"><div><div class="section-kicker">Availability lookup</div><h2>Search medicine</h2><p>Check current sellable stock and eligible batches.</p></div></div><div class="grid-2"><form id="search-form"><label>Medicine name<input name="name" autocomplete="off" required></label><div class="form-actions"><button class="secondary">Search availability</button></div></form><pre id="search-result" class="result">No medicine search yet.</pre></div></section>
         </section>
 
-        <section class="view" id="view-inventory"><section class="panel"><div class="panel-header"><div><div class="section-kicker">Stock register</div><h2>Inventory</h2><p>Every batch returned by the inventory service.</p></div><button class="secondary" data-view-target="add-batch">＋ Add batch</button></div><div id="inventory-empty" class="empty"><svg class="empty-illustration" viewBox="0 0 110 56" fill="none" aria-hidden="true"><rect x="35" y="12" width="40" height="32" rx="5" fill="#e3f4ee" stroke="#087f6b" stroke-width="2"/><path d="M43 22h24M43 29h24M43 36h15" stroke="#087f6b" stroke-width="2" stroke-linecap="round"/><path d="M20 28h10M80 28h10" stroke="#f0b84b" stroke-width="3" stroke-linecap="round"/></svg><strong>No batches yet</strong>Add or import a batch to populate the register.</div><div class="table-wrap"><table id="inventory-table" hidden><thead><tr><th>Batch ID</th><th>Medicine</th><th>Expiry</th><th>Quantity</th><th>Status</th></tr></thead><tbody></tbody></table></div></section></section>
+        <section class="view" id="view-inventory"><section class="panel"><div class="panel-header"><div><div class="section-kicker">Stock register</div><h2>Inventory</h2><p>Every batch returned by the inventory service.</p></div><button class="secondary" data-view-target="add-batch">＋ Add batch</button></div><div class="table-controls"><label>Sort by<select id="inventory-sort"><option value="batch_id">Batch ID</option><option value="medicine_name">Medicine</option><option value="expiry_date">Expiry</option><option value="quantity">Quantity</option></select></label><label>Order<select id="inventory-order"><option value="asc">Ascending</option><option value="desc">Descending</option></select></label><button class="secondary" id="inventory-prev">Previous</button><button class="secondary" id="inventory-next">Next</button><span id="inventory-page" class="muted">Page 1</span></div><div id="inventory-empty" class="empty"><svg class="empty-illustration" viewBox="0 0 110 56" fill="none" aria-hidden="true"><rect x="35" y="12" width="40" height="32" rx="5" fill="#e3f4ee" stroke="#087f6b" stroke-width="2"/><path d="M43 22h24M43 29h24M43 36h15" stroke="#087f6b" stroke-width="2" stroke-linecap="round"/><path d="M20 28h10M80 28h10" stroke="#f0b84b" stroke-width="3" stroke-linecap="round"/></svg><strong>No batches yet</strong>Add or import a batch to populate the register.</div><div class="table-wrap"><table id="inventory-table" hidden><thead><tr><th>Batch ID</th><th>Medicine</th><th>Expiry</th><th>Quantity</th><th>Status</th></tr></thead><tbody></tbody></table></div></section></section>
 
         <section class="view" id="view-add-batch"><section class="panel"><div class="panel-header"><div><div class="section-kicker">Stock intake</div><h2>Add a medicine batch</h2><p>Register a new batch with its expiry date and quantity.</p></div></div><form id="add-form" class="form-grid"><label>Batch ID<input name="batch_id" autocomplete="off" required></label><label>Medicine name<input name="medicine_name" autocomplete="off" required></label><label>Expiry date<input name="expiry_date" type="date" required></label><label>Quantity<input name="quantity" type="number" min="1" step="1" required></label><div class="form-actions wide"><button class="primary">Add batch</button></div></form></section></section>
 
@@ -172,6 +175,7 @@
     const loading = document.getElementById('loading');
     const syncState = document.getElementById('sync-state');
     let activeRequests = 0;
+    let inventoryPage = 1;
     const request = async (url, options) => {
       activeRequests += 1;
       setLoading(true);
@@ -196,11 +200,12 @@
     document.querySelectorAll('[data-view-target]').forEach((item) => item.addEventListener('click', () => navigate(item.dataset.viewTarget)));
 
     async function refreshInventory() {
-      const data = await api('/batches'); const batches = data.batches; const medicines = [...new Set(batches.map((batch) => batch.medicine_name.toLowerCase()))];
+      const sortBy = document.getElementById('inventory-sort')?.value || 'batch_id'; const order = document.getElementById('inventory-order')?.value || 'asc';
+      const data = await api(`/batches?page=${inventoryPage}&per_page=20&sort_by=${sortBy}&order=${order}`); const batches = data.batches; const medicines = [...new Set(batches.map((batch) => batch.medicine_name.toLowerCase()))];
       const stockResults = await Promise.all(medicines.map((name) => api(`/search?name=${encodeURIComponent(name)}`)));
       document.getElementById('total-batches').textContent = batches.length; document.getElementById('medicine-count').textContent = medicines.length; document.getElementById('sellable-stock').textContent = stockResults.reduce((sum, item) => sum + item.sellable_quantity, 0);
       const renderRows = (items, includeQuantity = true) => items.map((batch) => { const currentDate = new Date(); const expiry = new Date(`${batch.expiry_date}T23:59:59`); const expiresSoon = new Date(currentDate.getTime() + 7 * 86400000); const expired = expiry < currentDate; const expiringSoon = !batch.quarantined && !expired && expiry <= expiresSoon; const status = batch.quarantined ? 'Quarantined' : expired ? 'Expired' : 'Sellable'; const statusClass = batch.quarantined ? 'quarantined' : expired ? 'expired' : 'sellable'; return `<tr class="${expiringSoon ? 'expiring-soon' : ''}"><td>${escapeHtml(batch.batch_id)}</td><td>${escapeHtml(batch.medicine_name)}</td><td>${escapeHtml(batch.expiry_date)}${expiringSoon ? '<span class="expiry-hint">Due soon</span>' : ''}</td>${includeQuantity ? `<td>${batch.quantity}</td>` : ''}<td><span class="status ${statusClass}">${status}</span></td></tr>`; }).join('');
-      const inventoryTable = document.getElementById('inventory-table'); const dashboardTable = document.getElementById('dashboard-table'); inventoryTable.hidden = batches.length === 0; dashboardTable.hidden = batches.length === 0; inventoryTable.querySelector('tbody').innerHTML = renderRows(batches); dashboardTable.querySelector('tbody').innerHTML = renderRows(batches.slice(0, 5), false);
+      const inventoryTable = document.getElementById('inventory-table'); const dashboardTable = document.getElementById('dashboard-table'); inventoryTable.hidden = batches.length === 0; dashboardTable.hidden = batches.length === 0; inventoryTable.querySelector('tbody').innerHTML = renderRows(batches); dashboardTable.querySelector('tbody').innerHTML = renderRows(batches.slice(0, 5), false); document.getElementById('inventory-page').textContent = `Page ${data.page} of ${data.total_pages || 1}`; document.getElementById('inventory-prev').disabled = data.page <= 1; document.getElementById('inventory-next').disabled = data.page >= data.total_pages;
       document.getElementById('inventory-empty').hidden = batches.length !== 0; document.getElementById('dashboard-empty').hidden = batches.length !== 0;
     }
     document.getElementById('add-form').addEventListener('submit', async (event) => { event.preventDefault(); if (!event.target.reportValidity()) return; try { await api('/batches', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(formData(event.target))}); event.target.reset(); showSuccessAnimation(event.target); showMessage('Batch added successfully.'); await refreshInventory(); navigate('inventory'); } catch (error) { showMessage(error.message, true); } });
@@ -211,6 +216,11 @@
     document.getElementById('import-form').addEventListener('submit', async (event) => { event.preventDefault(); try { const records = JSON.parse(new FormData(event.target).get('records')); printResult('import-result', await api('/import', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(records)})); await refreshInventory(); showMessage('Import completed.'); } catch (error) { printResult('import-result', {error:error.message}); showMessage(error.message, true); } });
     document.getElementById('threshold-form').addEventListener('submit', async (event) => { event.preventDefault(); if (!event.target.reportValidity()) return; const values = Object.fromEntries(new FormData(event.target)); values.threshold = Number(values.threshold); try { printResult('outbox-result', await api('/reorder-thresholds', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(values)})); showMessage('Reorder threshold saved.'); } catch (error) { printResult('outbox-result', {error:error.message}); showMessage(error.message, true); } });
     document.getElementById('refresh-outbox').addEventListener('click', async () => { try { printResult('outbox-result', await request('/outbox')); showMessage('Notifications refreshed.'); } catch (error) { printResult('outbox-result', {error:error.message}); showMessage(error.message, true); } });
+    document.getElementById('inventory-prev').addEventListener('click', () => { if (inventoryPage > 1) { inventoryPage -= 1; refreshInventory(); } });
+    document.getElementById('inventory-next').addEventListener('click', () => { inventoryPage += 1; refreshInventory(); });
+    document.getElementById('inventory-sort').addEventListener('change', () => { inventoryPage = 1; refreshInventory(); });
+    document.getElementById('inventory-order').addEventListener('change', () => { inventoryPage = 1; refreshInventory(); });
+    document.getElementById('logout').addEventListener('click', async () => { await request('/api/logout', {method:'POST'}); window.location.href = '/'; });
     document.getElementById('refresh').addEventListener('click', () => refreshInventory().then(() => showMessage('Inventory refreshed.')).catch((error) => showMessage(error.message, true)));
     refreshInventory().catch((error) => showMessage(error.message, true));
   </script>

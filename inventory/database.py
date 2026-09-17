@@ -60,6 +60,12 @@ class SQLiteDatabase:
                 created_date TEXT NOT NULL,
                 status TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
             """
         )
         self.connection.commit()
@@ -70,6 +76,78 @@ class SQLiteDatabase:
             "SELECT * FROM batches ORDER BY rowid"
         ).fetchall()
         return [self._batch_from_row(row) for row in rows]
+
+    @_synchronized
+    def list_batches_page(
+        self, offset: int, limit: int, sort_by: str, descending: bool
+    ) -> tuple[List[Batch], int]:
+        allowed_columns = {
+            "batch_id": "batch_id",
+            "medicine_name": "medicine_name",
+            "expiry_date": "expiry_date",
+            "quantity": "quantity",
+            "quarantined": "quarantined",
+        }
+        column = allowed_columns[sort_by]
+        direction = "DESC" if descending else "ASC"
+        total = self.connection.execute("SELECT COUNT(*) FROM batches").fetchone()[0]
+        rows = self.connection.execute(
+            f"SELECT * FROM batches ORDER BY {column} {direction}, batch_id ASC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ).fetchall()
+        return [self._batch_from_row(row) for row in rows], total
+
+    @_synchronized
+    def search_batches_page(
+        self,
+        medicine_name: str,
+        offset: int,
+        limit: int,
+        sort_by: str,
+        descending: bool,
+    ) -> tuple[List[Batch], int]:
+        allowed_columns = {
+            "batch_id": "batch_id",
+            "medicine_name": "medicine_name",
+            "expiry_date": "expiry_date",
+            "quantity": "quantity",
+        }
+        column = allowed_columns[sort_by]
+        direction = "DESC" if descending else "ASC"
+        pattern = medicine_name.casefold()
+        total = self.connection.execute(
+            "SELECT COUNT(*) FROM batches WHERE lower(medicine_name) = ? AND quantity > 0 AND quarantined = 0",
+            (pattern,),
+        ).fetchone()[0]
+        rows = self.connection.execute(
+            f"""
+            SELECT * FROM batches
+            WHERE lower(medicine_name) = ? AND quantity > 0 AND quarantined = 0
+            ORDER BY {column} {direction}, batch_id ASC
+            LIMIT ? OFFSET ?
+            """,
+            (pattern, limit, offset),
+        ).fetchall()
+        return [self._batch_from_row(row) for row in rows], total
+
+    @_synchronized
+    def create_user(self, username: str, password_hash: str) -> None:
+        try:
+            self.connection.execute(
+                "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                (username, password_hash),
+            )
+            self.connection.commit()
+        except sqlite3.IntegrityError as error:
+            self.connection.rollback()
+            raise ValueError("Username already exists") from error
+
+    @_synchronized
+    def get_user(self, username: str) -> Optional[sqlite3.Row]:
+        return self.connection.execute(
+            "SELECT user_id, username, password_hash FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
 
     @_synchronized
     def insert_batch(self, batch: Batch) -> None:

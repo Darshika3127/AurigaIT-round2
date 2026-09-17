@@ -67,6 +67,55 @@ class InventoryService:
         self._refresh_cache()
         return [deepcopy(batch) for batch in self._batches.values()]
 
+    def list_batches_page(
+        self,
+        page: int,
+        per_page: int,
+        sort_by: str = "batch_id",
+        order: str = "asc",
+    ) -> tuple[List[Batch], int]:
+        """Return one database-backed page of batches."""
+        if page < 1 or per_page < 1:
+            raise ValidationError("Page and per_page must be positive integers")
+        if sort_by not in {"batch_id", "medicine_name", "expiry_date", "quantity", "quarantined"}:
+            raise ValidationError("Unsupported sort field")
+        if order not in {"asc", "desc"}:
+            raise ValidationError("Order must be asc or desc")
+        batches, total = self._database.list_batches_page(
+            (page - 1) * per_page, per_page, sort_by, order == "desc"
+        )
+        return [deepcopy(batch) for batch in batches], total
+
+    def search_medicine_page(
+        self,
+        medicine_name: str,
+        page: int,
+        per_page: int,
+        sort_by: str = "expiry_date",
+        order: str = "asc",
+    ) -> tuple[dict, int]:
+        """Return one database-backed page of sellable matching batches."""
+        normalized_name = self._validate_medicine_name(medicine_name)
+        if page < 1 or per_page < 1:
+            raise ValidationError("Page and per_page must be positive integers")
+        if sort_by not in {"batch_id", "medicine_name", "expiry_date", "quantity"}:
+            raise ValidationError("Unsupported sort field")
+        if order not in {"asc", "desc"}:
+            raise ValidationError("Order must be asc or desc")
+        batches, total = self._database.search_batches_page(
+            normalized_name,
+            (page - 1) * per_page,
+            per_page,
+            sort_by,
+            order == "desc",
+        )
+        return {
+            "medicine_name": normalized_name,
+            "available": total > 0,
+            "sellable_quantity": sum(batch.quantity for batch in batches),
+            "batches": [deepcopy(batch) for batch in batches],
+        }, total
+
     def run_clock(self, today: DateInput = None) -> dict:
         """Quarantine expired batches and report the seven-day expiry window."""
         self._sync_cache()

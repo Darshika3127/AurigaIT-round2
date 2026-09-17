@@ -19,6 +19,9 @@ survive application restarts.
 - Run a deterministic daily clock that quarantines expired batches.
 - Import messy batch records with row-level results.
 - Generate deduplicated low-stock reorder notifications.
+- User registration, login, logout, and protected inventory changes.
+- Paginated and safely sorted batch APIs.
+- Public product landing page with roadmap items.
 - Keep FEFO selection and all pharmacy rules inside `InventoryService`.
 
 A batch expiring today is considered valid. A batch is expired only when its
@@ -48,6 +51,7 @@ expiry date is before today.
 │   ├── notifications.py
 │   └── service.py
 ├── templates/
+│   ├── landing.html
 │   └── index.html
 └── tests/
   ├── test_app.py
@@ -55,6 +59,7 @@ expiry date is before today.
   ├── test_inventory.py
   ├── test_persistence.py
   └── test_notifications.py
+├── REASONING.md
 ```
 
 ## Installation and setup
@@ -127,6 +132,10 @@ All request bodies are JSON. Dates use `YYYY-MM-DD`.
 | POST | `/api/import` | Import a JSON array of messy batch records |
 | POST | `/api/reorder-thresholds` | Configure a medicine reorder threshold |
 | GET | `/outbox` | View generated reorder notifications |
+| POST | `/api/register` | Create a user account |
+| POST | `/api/login` | Start a session |
+| POST | `/api/logout` | End a session |
+| GET | `/dashboard` | Authenticated operations dashboard |
 
 Successful batch creation returns `201`; invalid input returns `400`; duplicate
 batches and insufficient stock return `409`; successful reads and dispensing
@@ -162,6 +171,18 @@ Successful batch creation returns `201`. Invalid input returns `400`, duplicate
 batches and insufficient stock return `409`, and successful reads or dispensing
 return `200`.
 
+`GET /api/batches` accepts `page`, `per_page` (1-100), `sort_by`, and `order`
+(`asc` or `desc`). Allowed batch sort fields are `batch_id`, `medicine_name`,
+`expiry_date`, `quantity`, and `quarantined`. Responses retain the `batches`
+array and include `page`, `per_page`, `total`, and `total_pages`. Search accepts
+the same pagination parameters and keeps its existing result fields.
+
+Inventory-changing operations require a logged-in session. Health checks,
+registration, login, logout, the product landing page, and read-only inventory
+queries remain public. Passwords are hashed with Werkzeug and never returned by
+the API. Set `PHARMACY_SECRET_KEY` in production instead of using the local
+development fallback.
+
 ## Assessment demonstration
 
 1. Start the server and open the dashboard.
@@ -173,6 +194,8 @@ return `200`.
 6. Try to dispense more than available and show that quantities do not change.
 7. Search for an unknown medicine and show its unavailable response.
 8. Run the full test command and show the passing result.
+9. Register and log in from the public landing page, then demonstrate that
+  inventory changes require authentication.
 
 ## Twist rules and assumptions
 
@@ -233,6 +256,8 @@ callers can use a deterministic current date.
 
 - The default SQLite database is local to the application process and does not
   provide multi-instance deployment coordination.
-- Authentication, users, and audit history are not included.
+- Audit history and role-based permissions are not included.
+- Sessions currently use Flask's signed cookie session; production deployments
+  should set a strong secret key and add CSRF protection for browser forms.
 - A production version could add persistent storage, migrations, authorization,
   audit events, pagination, and deployment configuration.

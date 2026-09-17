@@ -9,6 +9,8 @@ from inventory.service import InventoryService
 class FlaskApiTests(unittest.TestCase):
     def setUp(self) -> None:
         self.client = create_app(InventoryService(":memory:")).test_client()
+        self.client.post("/api/register", json={"username": "tester", "password": "password123"})
+        self.client.post("/api/login", json={"username": "tester", "password": "password123"})
 
     def add_batch(self, batch_id: str, medicine: str, expiry: str, quantity: int):
         return self.client.post(
@@ -140,6 +142,51 @@ class FlaskApiTests(unittest.TestCase):
         response = self.client.get("/outbox")
 
         self.assertEqual(len(response.json["notifications"]), 1)
+
+    def test_registration_login_logout_and_protected_route(self) -> None:
+        client = create_app(InventoryService(":memory:")).test_client()
+        self.assertEqual(client.get("/api/batches").status_code, 200)
+        self.assertEqual(client.post("/api/batches", json={"batch_id": "X", "medicine_name": "M", "expiry_date": "2099-01-01", "quantity": 1}).status_code, 401)
+        self.assertEqual(client.post("/api/register", json={"username": "alice", "password": "password123"}).status_code, 201)
+        self.assertEqual(client.post("/api/register", json={"username": "alice", "password": "password123"}).status_code, 409)
+        self.assertEqual(client.post("/api/login", json={"username": "alice", "password": "wrongpass"}).status_code, 401)
+        self.assertEqual(client.post("/api/login", json={"username": "alice", "password": "password123"}).status_code, 200)
+        self.assertEqual(client.post("/api/logout").status_code, 200)
+        self.assertEqual(client.post("/api/batches", json={"batch_id": "X", "medicine_name": "M", "expiry_date": "2099-01-01", "quantity": 1}).status_code, 401)
+
+    def test_batch_pagination_sorting_and_invalid_parameters(self) -> None:
+        for batch_id, quantity in (("C", 3), ("A", 1), ("B", 2)):
+            self.add_batch(batch_id, "Medicine", "2099-10-01", quantity)
+
+        page = self.client.get("/api/batches?page=2&per_page=2&sort_by=batch_id&order=asc")
+        descending = self.client.get("/api/batches?sort_by=quantity&order=desc")
+        invalid = self.client.get("/api/batches?sort_by=drop_table")
+
+        self.assertEqual(page.status_code, 200)
+        self.assertEqual(page.json["total"], 3)
+        self.assertEqual(page.json["total_pages"], 2)
+        self.assertEqual([item["batch_id"] for item in page.json["batches"]], ["C"])
+        self.assertEqual([item["quantity"] for item in descending.json["batches"]], [3, 2, 1])
+        self.assertEqual(invalid.status_code, 400)
+
+    def test_search_pagination_metadata(self) -> None:
+        self.add_batch("A", "Medicine", "2099-10-01", 1)
+        self.add_batch("B", "Medicine", "2099-10-02", 2)
+        response = self.client.get("/api/search?name=medicine&page=1&per_page=1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["total"], 2)
+        self.assertEqual(response.json["total_pages"], 2)
+        self.assertEqual(len(response.json["batches"]), 1)
+
+    def test_public_landing_page_and_dashboard_guard(self) -> None:
+        client = create_app(InventoryService(":memory:")).test_client()
+        landing = client.get("/")
+        dashboard = client.get("/dashboard")
+
+        self.assertEqual(landing.status_code, 200)
+        self.assertIn(b"Pharmacy Operations", landing.data)
+        self.assertEqual(dashboard.status_code, 302)
 
 
 if __name__ == "__main__":
