@@ -9,13 +9,14 @@
     * { box-sizing: border-box; }
     body { background:var(--wash); color:var(--ink); margin:0; }
     button, input, textarea { font:inherit; }
-    button { border:0; border-radius:7px; cursor:pointer; font-weight:750; padding:.7rem 1rem; transition:background .18s, transform .18s; }
+    button { border:0; border-radius:7px; cursor:pointer; font-weight:750; padding:.7rem 1rem; transition:background .18s, box-shadow .18s, transform .18s; }
     button:hover { transform:translateY(-1px); }
-    button:disabled { cursor:wait; opacity:.6; transform:nongit statuse; }
+    button:disabled { cursor:wait; opacity:.6; transform:none; }
     .app-shell { display:grid; grid-template-columns:248px minmax(0,1fr); min-height:100vh; }
     .sidebar { background:var(--navy); color:#e9f7f3; padding:1.5rem 1rem; }
     .brand { align-items:center; display:flex; gap:.75rem; margin:0 .65rem 2rem; }
-    .brand-mark { align-items:center; background:#f0b84b; border-radius:10px; color:var(--navy); display:flex; font-size:1.2rem; font-weight:900; height:38px; justify-content:center; width:38px; }
+    .brand-mark { align-items:center; background:#f0b84b; border-radius:10px; color:var(--navy); display:flex; font-size:1.2rem; font-weight:900; height:38px; justify-content:center; position:relative; width:38px; }
+    .brand-mark::after { background:#fff8df; border:2px solid var(--navy); border-radius:999px; content:""; height:7px; position:absolute; right:-4px; top:5px; transform:rotate(-32deg); width:16px; }
     .brand strong { display:block; font-size:1.02rem; letter-spacing:.01em; }
     .brand small { color:#a9cbc3; display:block; margin-top:.15rem; }
     .nav-label { color:#86aba3; font-size:.68rem; font-weight:800; letter-spacing:.12em; margin:0 .75rem .5rem; text-transform:uppercase; }
@@ -26,6 +27,12 @@
     .nav-icon { display:inline-block; margin-right:.7rem; opacity:.8; text-align:center; width:1.2rem; }
     .sidebar-note { border-top:1px solid rgba(255,255,255,.12); color:#9ec0b8; font-size:.78rem; line-height:1.5; margin:2rem .75rem 0; padding-top:1rem; }
     .content { min-width:0; padding:2rem clamp(1rem,4vw,3rem); }
+    .content > .medical-doodle { pointer-events:none; position:absolute; z-index:0; }
+    .medical-doodle svg { display:block; height:auto; opacity:.16; width:100%; }
+    .doodle-pill { right:2.5rem; top:1.2rem; transform:rotate(-18deg); width:76px; }
+    .doodle-heartbeat { bottom:2rem; right:2rem; width:118px; }
+    .floating-pill { animation:floating-pill 5s ease-in-out infinite; }
+    header, main, .loading { position:relative; z-index:1; }
     .topbar { align-items:flex-start; display:flex; justify-content:space-between; margin:0 auto 1.8rem; max-width:1240px; }
     .eyebrow { color:var(--teal); font-size:.72rem; font-weight:850; letter-spacing:.12em; text-transform:uppercase; }
     h1, h2, h3, p { margin-top:0; }
@@ -37,12 +44,16 @@
     .top-actions { align-items:center; display:flex; gap:.7rem; }
     .sync-state { color:var(--muted); font-size:.78rem; }
     .primary { background:var(--teal); color:white; }
-    .primary:hover { background:var(--teal-dark); }
+    .primary:hover { background:var(--teal-dark); box-shadow:0 5px 14px rgba(8,127,107,.18); }
     .secondary { background:var(--paper); border:1px solid var(--line); color:var(--teal-dark); }
     .view { display:none; margin:0 auto; max-width:1240px; }
     .view.active { display:block; }
     .summary-grid { display:grid; gap:1rem; grid-template-columns:repeat(3,1fr); margin-bottom:1rem; }
-    .summary-card, .panel { background:var(--paper); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); }
+    .summary-card, .panel { animation:fade-in .45s ease both; background:var(--paper); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); transition:box-shadow .2s, transform .2s; }
+    .fade-in { animation:fade-in .45s ease both; }
+    .summary-card:hover, .panel:hover { box-shadow:0 16px 36px rgba(24,58,51,.1); transform:translateY(-2px); }
+    .summary-card:nth-child(2) { animation-delay:.06s; }
+    .summary-card:nth-child(3) { animation-delay:.12s; }
     .summary-card { padding:1.15rem 1.25rem; }
     .summary-card .label { color:var(--muted); font-size:.78rem; font-weight:750; }
     .summary-card strong { display:block; font-size:2rem; letter-spacing:-.04em; margin-top:.4rem; }
@@ -62,7 +73,8 @@
     .message { align-items:center; border-radius:7px; display:flex; font-size:.86rem; margin:0 0 1rem; min-height:0; padding:.75rem 1rem; }
     .message:empty { display:none; }
     .message.error { background:var(--red); color:var(--red-ink); }
-    .message.success { background:var(--mint); color:var(--teal-dark); }
+    .message.success { animation:success-pop .42s ease both; background:var(--mint); color:var(--teal-dark); }
+    .message.success::before { content:"✓"; font-weight:900; margin-right:.55rem; }
     .loading { align-items:center; color:var(--muted); display:flex; font-size:.8rem; gap:.5rem; }
     .spinner { animation:spin .8s linear infinite; border:2px solid #c7ddd7; border-radius:50%; border-top-color:var(--teal); display:inline-block; height:14px; width:14px; }
     @keyframes spin { to { transform:rotate(360deg); } }
@@ -71,19 +83,31 @@
     th, td { border-bottom:1px solid #e8efed; padding:.85rem .75rem; text-align:left; }
     th { color:var(--muted); font-size:.7rem; font-weight:850; letter-spacing:.08em; text-transform:uppercase; }
     td { font-size:.88rem; }
-    tbody tr:hover { background:#f8fbfa; }
+    tbody tr { transition:background .18s, box-shadow .18s; }
+    tbody tr:hover { background:#f8fbfa; box-shadow:inset 3px 0 var(--teal); }
+    tbody tr.expiring-soon { background:#fffaf0; box-shadow:inset 3px 0 #e3ad39; }
+    tbody tr.expiring-soon:hover { background:#fff5dc; }
+    .expiry-hint { color:var(--amber-ink); display:inline-block; font-size:.68rem; font-weight:750; margin-left:.35rem; }
     .status { border-radius:999px; display:inline-flex; font-size:.72rem; font-weight:800; padding:.3rem .6rem; }
     .sellable { background:var(--mint); color:var(--teal-dark); }
     .expired, .quarantined { background:var(--red); color:var(--red-ink); }
     .quarantined { background:var(--amber); color:var(--amber-ink); }
     .empty { color:var(--muted); padding:2.5rem 1rem; text-align:center; }
     .empty strong { color:var(--ink); display:block; margin-bottom:.35rem; }
+    .empty-illustration { animation:floating-pill 4s ease-in-out infinite; display:block; height:56px; margin:0 auto .7rem; width:110px; }
+    .expiry-alert { animation:alert-pulse 2.2s ease-in-out infinite; background:var(--amber); color:var(--amber-ink); }
     pre.result { background:#f6faf8; border:1px solid #e2ece8; border-radius:7px; color:#42625a; font: .78rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; margin:1rem 0 0; max-height:230px; overflow:auto; padding:.85rem; white-space:pre-wrap; }
     .section-kicker { color:var(--teal); font-size:.72rem; font-weight:850; letter-spacing:.1em; text-transform:uppercase; }
     .notice-list { display:grid; gap:.7rem; margin-top:1rem; }
     .notice { background:#fffaf0; border:1px solid #f0dfb8; border-radius:7px; padding:.8rem; }
     .notice strong { display:block; font-size:.87rem; }
     .notice small { color:var(--muted); display:block; margin-top:.25rem; }
+    @keyframes fade-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes floating-pill { 0%,100% { transform:translateY(0) rotate(-3deg); } 50% { transform:translateY(-5px) rotate(3deg); } }
+    @keyframes alert-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(227,173,57,0); } 50% { box-shadow:0 0 0 5px rgba(227,173,57,.18); } }
+    @keyframes success-pop { 0% { box-shadow:0 0 0 0 rgba(8,127,107,.28); } 100% { box-shadow:0 0 0 8px rgba(8,127,107,0); } }
+    .success-animation { animation:success-pop .48s ease both; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important; } }
     @media (max-width:850px) { .app-shell { grid-template-columns:1fr; } .sidebar { padding:1rem; } .brand { margin-bottom:1rem; } .nav { display:flex; gap:.35rem; overflow-x:auto; } .nav button { flex:0 0 auto; white-space:nowrap; width:auto; } .nav-label, .sidebar-note { display:none; } .content { padding:1.25rem; } }
     @media (max-width:650px) { .topbar { display:block; } .top-actions { margin-top:1rem; } .summary-grid, .grid-2, .form-grid { grid-template-columns:1fr; } .form-grid .wide { grid-column:auto; } }
   </style>
@@ -102,32 +126,34 @@
         <button data-view-target="expiry"><span class="nav-icon">◷</span>Expiry Monitoring</button>
         <button data-view-target="notifications"><span class="nav-icon">!</span>Reorder Notifications</button>
       </nav>
-      <p class="sidebar-note">Live inventory data is loaded from the pharmacy service. Changes are held in memory for this session.</p>
+      <p class="sidebar-note">Live inventory data is loaded from the pharmacy service. Changes are saved to local SQLite storage.</p>
     </aside>
 
     <div class="content">
+      <div class="medical-doodle doodle-pill floating-pill" aria-hidden="true"><svg viewBox="0 0 80 32" fill="none"><rect x="2" y="5" width="76" height="22" rx="11" fill="#f0b84b"/><path d="M40 5v22" stroke="#143d49" stroke-width="2"/><path d="M9 16h12" stroke="#fff8df" stroke-width="3" stroke-linecap="round"/></svg></div>
+      <div class="medical-doodle doodle-heartbeat" aria-hidden="true"><svg viewBox="0 0 120 40" fill="none"><path d="M2 22h25l7-16 10 28 9-19 7 7h22" stroke="#087f6b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M84 22h34" stroke="#087f6b" stroke-width="3" stroke-linecap="round"/></svg></div>
       <header class="topbar">
         <div><div class="eyebrow">Operations overview</div><h1 id="page-title">Dashboard</h1><p class="subtitle">Monitor stock, expiry, and replenishment in one place.</p></div>
         <div class="top-actions"><span class="sync-state" id="sync-state">Ready</span><button class="secondary" id="refresh">↻ Refresh</button></div>
       </header>
       <div id="message" class="message" role="status" aria-live="polite"></div>
-      <div id="loading" class="loading" hidden><span class="spinner"></span>Syncing inventory…</div>
+      <div id="loading" class="loading" aria-live="polite" hidden><span class="spinner loading-spinner"></span>Syncing inventory…</div>
 
       <main>
         <section class="view active" id="view-dashboard">
           <div class="summary-grid" aria-label="Inventory summary">
-            <article class="summary-card"><span class="label">TOTAL BATCHES</span><strong id="total-batches">0</strong><span class="detail">Across all medicines</span></article>
-            <article class="summary-card"><span class="label">SELLABLE STOCK</span><strong id="sellable-stock">0</strong><span class="detail">Units available to dispense</span></article>
-            <article class="summary-card"><span class="label">MEDICINES</span><strong id="medicine-count">0</strong><span class="detail">Distinct medicine names</span></article>
+            <article class="summary-card fade-in"><span class="label">TOTAL BATCHES</span><strong id="total-batches">0</strong><span class="detail">Across all medicines</span></article>
+            <article class="summary-card fade-in"><span class="label">SELLABLE STOCK</span><strong id="sellable-stock">0</strong><span class="detail">Units available to dispense</span></article>
+            <article class="summary-card fade-in"><span class="label">MEDICINES</span><strong id="medicine-count">0</strong><span class="detail">Distinct medicine names</span></article>
           </div>
           <div class="grid-2">
-            <section class="panel"><div class="panel-header"><div><div class="section-kicker">At a glance</div><h2>Recent inventory snapshot</h2><p>Review the current batch register and status.</p></div><button class="secondary" data-view-target="inventory">Open inventory</button></div><div id="dashboard-empty" class="empty"><strong>Your inventory is ready</strong>Add a batch to begin tracking stock.</div><div class="table-wrap"><table id="dashboard-table" hidden><thead><tr><th>Batch</th><th>Medicine</th><th>Expiry</th><th>Status</th></tr></thead><tbody></tbody></table></div></section>
+            <section class="panel fade-in"><div class="panel-header"><div><div class="section-kicker">At a glance</div><h2>Recent inventory snapshot</h2><p>Review the current batch register and status.</p></div><button class="secondary" data-view-target="inventory">Open inventory</button></div><div id="dashboard-empty" class="empty"><svg class="empty-illustration" viewBox="0 0 110 56" fill="none" aria-hidden="true"><rect x="33" y="9" width="44" height="38" rx="7" fill="#e3f4ee" stroke="#087f6b" stroke-width="2"/><path d="M44 9V4h22v5M44 23h22M44 31h14" stroke="#087f6b" stroke-width="2" stroke-linecap="round"/><path d="M78 39c8-8 14-8 22 0" stroke="#f0b84b" stroke-width="2" stroke-linecap="round"/></svg><strong>Your inventory is ready</strong>Add a batch to begin tracking stock.</div><div class="table-wrap"><table id="dashboard-table" hidden><thead><tr><th>Batch</th><th>Medicine</th><th>Expiry</th><th>Status</th></tr></thead><tbody></tbody></table></div></section>
             <section class="panel"><div class="panel-header"><div><div class="section-kicker">Fast actions</div><h2>Keep work moving</h2><p>Use the navigation for detailed workflows.</p></div></div><div class="grid-2"><button class="primary" data-view-target="add-batch">＋ Add a batch</button><button class="secondary" data-view-target="dispense">⇩ Dispense stock</button><button class="secondary" data-view-target="expiry">◷ Run expiry check</button><button class="secondary" data-view-target="notifications">! View outbox</button></div></section>
           </div>
           <section class="panel" style="margin-top:1rem"><div class="panel-header"><div><div class="section-kicker">Availability lookup</div><h2>Search medicine</h2><p>Check current sellable stock and eligible batches.</p></div></div><div class="grid-2"><form id="search-form"><label>Medicine name<input name="name" autocomplete="off" required></label><div class="form-actions"><button class="secondary">Search availability</button></div></form><pre id="search-result" class="result">No medicine search yet.</pre></div></section>
         </section>
 
-        <section class="view" id="view-inventory"><section class="panel"><div class="panel-header"><div><div class="section-kicker">Stock register</div><h2>Inventory</h2><p>Every batch returned by the inventory service.</p></div><button class="secondary" data-view-target="add-batch">＋ Add batch</button></div><div id="inventory-empty" class="empty"><strong>No batches yet</strong>Add or import a batch to populate the register.</div><div class="table-wrap"><table id="inventory-table" hidden><thead><tr><th>Batch ID</th><th>Medicine</th><th>Expiry</th><th>Quantity</th><th>Status</th></tr></thead><tbody></tbody></table></div></section></section>
+        <section class="view" id="view-inventory"><section class="panel"><div class="panel-header"><div><div class="section-kicker">Stock register</div><h2>Inventory</h2><p>Every batch returned by the inventory service.</p></div><button class="secondary" data-view-target="add-batch">＋ Add batch</button></div><div id="inventory-empty" class="empty"><svg class="empty-illustration" viewBox="0 0 110 56" fill="none" aria-hidden="true"><rect x="35" y="12" width="40" height="32" rx="5" fill="#e3f4ee" stroke="#087f6b" stroke-width="2"/><path d="M43 22h24M43 29h24M43 36h15" stroke="#087f6b" stroke-width="2" stroke-linecap="round"/><path d="M20 28h10M80 28h10" stroke="#f0b84b" stroke-width="3" stroke-linecap="round"/></svg><strong>No batches yet</strong>Add or import a batch to populate the register.</div><div class="table-wrap"><table id="inventory-table" hidden><thead><tr><th>Batch ID</th><th>Medicine</th><th>Expiry</th><th>Quantity</th><th>Status</th></tr></thead><tbody></tbody></table></div></section></section>
 
         <section class="view" id="view-add-batch"><section class="panel"><div class="panel-header"><div><div class="section-kicker">Stock intake</div><h2>Add a medicine batch</h2><p>Register a new batch with its expiry date and quantity.</p></div></div><form id="add-form" class="form-grid"><label>Batch ID<input name="batch_id" autocomplete="off" required></label><label>Medicine name<input name="medicine_name" autocomplete="off" required></label><label>Expiry date<input name="expiry_date" type="date" required></label><label>Quantity<input name="quantity" type="number" min="1" step="1" required></label><div class="form-actions wide"><button class="primary">Add batch</button></div></form></section></section>
 
@@ -135,7 +161,7 @@
 
         <section class="view" id="view-import-data"><section class="panel"><div class="panel-header"><div><div class="section-kicker">Bulk intake</div><h2>Import batch data</h2><p>Paste a JSON array. Each row is classified by the backend.</p></div></div><form id="import-form"><label>JSON batch array<textarea name="records" placeholder="Paste a JSON array of batch records" required></textarea></label><div class="form-actions"><button class="primary">Import data</button></div></form><pre id="import-result" class="result">Import results will appear here.</pre></section></section>
 
-        <section class="view" id="view-expiry"><div class="grid-2"><section class="panel"><div class="panel-header"><div><div class="section-kicker">Daily automation</div><h2>Run expiry monitoring</h2><p>Quarantine expired batches and report the seven-day window.</p></div></div><form id="clock-form"><label>Evaluation date <span class="muted">Optional; defaults to today</span><input name="today" type="date"></label><div class="form-actions"><button class="primary">Run clock</button></div></form><pre id="clock-result" class="result">No clock run yet.</pre></section><section class="panel"><div class="panel-header"><div><div class="section-kicker">Expiry search</div><h2>Upcoming alerts</h2><p>Find batches approaching their expiry date.</p></div></div><form id="alerts-form"><label>Days ahead<input name="days" type="number" min="0" step="1" value="7" required></label><div class="form-actions"><button class="secondary">Show expiry alerts</button></div></form><pre id="alerts-result" class="result">No alert search yet.</pre></section></div></section>
+        <section class="view" id="view-expiry"><div class="grid-2"><section class="panel"><div class="panel-header"><div><div class="section-kicker">Daily automation</div><h2>Run expiry monitoring</h2><p>Quarantine expired batches and report the seven-day window.</p></div></div><form id="clock-form"><label>Evaluation date <span class="muted">Optional; defaults to today</span><input name="today" type="date"></label><div class="form-actions"><button class="primary">Run clock</button></div></form><pre id="clock-result" class="result">No clock run yet.</pre></section><section class="panel"><div class="panel-header"><div><div class="section-kicker">Expiry search</div><h2>Upcoming alerts</h2><p>Find batches approaching their expiry date.</p></div><span id="expiry-alert-badge" class="status expiry-alert" hidden></span></div><form id="alerts-form"><label>Days ahead<input name="days" type="number" min="0" step="1" value="7" required></label><div class="form-actions"><button class="secondary">Show expiry alerts</button></div></form><pre id="alerts-result" class="result">No alert search yet.</pre></section></div></section>
 
         <section class="view" id="view-notifications"><div class="grid-2"><section class="panel"><div class="panel-header"><div><div class="section-kicker">Replenishment rules</div><h2>Reorder threshold</h2><p>Create an alert when sellable stock falls below this value.</p></div></div><form id="threshold-form"><label>Medicine name<input name="medicine_name" autocomplete="off" required></label><label>Threshold<input name="threshold" type="number" min="0" step="1" required></label><div class="form-actions"><button class="primary">Save threshold</button></div></form></section><section class="panel"><div class="panel-header"><div><div class="section-kicker">Internal queue</div><h2>Notification outbox</h2><p>Generated reorder notifications from the backend.</p></div><button class="secondary" id="refresh-outbox">↻ Refresh</button></div><pre id="outbox-result" class="result">No notifications loaded yet.</pre></section></div></section>
       </main>
@@ -145,35 +171,42 @@
     const message = document.getElementById('message');
     const loading = document.getElementById('loading');
     const syncState = document.getElementById('sync-state');
-    const request = (url, options) => fetch(url, options).then(async (response) => {
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Request failed');
-      return data;
-    });
+    let activeRequests = 0;
+    const request = async (url, options) => {
+      activeRequests += 1;
+      setLoading(true);
+      try {
+        const response = await fetch(url, options);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Request failed');
+        return data;
+      } finally {
+        activeRequests -= 1;
+        if (activeRequests === 0) setLoading(false);
+      }
+    };
     const api = (path, options) => request(`/api${path}`, options);
     const formData = (form) => { const data = Object.fromEntries(new FormData(form)); if (data.quantity) data.quantity = Number(data.quantity); if (data.days) data.days = Number(data.days); return data; };
     const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (character) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[character]));
     function showMessage(text, isError = false) { message.textContent = text; message.className = `message ${isError ? 'error' : 'success'}`; }
     function printResult(id, value) { document.getElementById(id).textContent = JSON.stringify(value, null, 2); }
     function setLoading(active) { loading.hidden = !active; syncState.textContent = active ? 'Syncing…' : 'Up to date'; }
+    function showSuccessAnimation(form) { form.classList.remove('success-animation'); void form.offsetWidth; form.classList.add('success-animation'); window.setTimeout(() => form.classList.remove('success-animation'), 700); }
     function navigate(view) { document.querySelectorAll('.view').forEach((item) => item.classList.toggle('active', item.id === `view-${view}`)); document.querySelectorAll('[data-view-target]').forEach((item) => item.classList.toggle('active', item.dataset.viewTarget === view)); document.getElementById('page-title').textContent = view.replace('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()); window.scrollTo({top:0, behavior:'smooth'}); }
     document.querySelectorAll('[data-view-target]').forEach((item) => item.addEventListener('click', () => navigate(item.dataset.viewTarget)));
 
     async function refreshInventory() {
-      setLoading(true);
-      try {
-        const data = await api('/batches'); const batches = data.batches; const medicines = [...new Set(batches.map((batch) => batch.medicine_name.toLowerCase()))];
-        const stockResults = await Promise.all(medicines.map((name) => api(`/search?name=${encodeURIComponent(name)}`)));
-        document.getElementById('total-batches').textContent = batches.length; document.getElementById('medicine-count').textContent = medicines.length; document.getElementById('sellable-stock').textContent = stockResults.reduce((sum, item) => sum + item.sellable_quantity, 0);
-        const renderRows = (items, includeQuantity = true) => items.map((batch) => { const expired = new Date(`${batch.expiry_date}T23:59:59`) < new Date(); const status = batch.quarantined ? 'Quarantined' : expired ? 'Expired' : 'Sellable'; const statusClass = batch.quarantined ? 'quarantined' : expired ? 'expired' : 'sellable'; return `<tr><td>${escapeHtml(batch.batch_id)}</td><td>${escapeHtml(batch.medicine_name)}</td><td>${escapeHtml(batch.expiry_date)}</td>${includeQuantity ? `<td>${batch.quantity}</td>` : ''}<td><span class="status ${statusClass}">${status}</span></td></tr>`; }).join('');
-        const inventoryTable = document.getElementById('inventory-table'); const dashboardTable = document.getElementById('dashboard-table'); inventoryTable.hidden = batches.length === 0; dashboardTable.hidden = batches.length === 0; inventoryTable.querySelector('tbody').innerHTML = renderRows(batches); dashboardTable.querySelector('tbody').innerHTML = renderRows(batches.slice(0, 5), false);
-        document.getElementById('inventory-empty').hidden = batches.length !== 0; document.getElementById('dashboard-empty').hidden = batches.length !== 0;
-      } finally { setLoading(false); }
+      const data = await api('/batches'); const batches = data.batches; const medicines = [...new Set(batches.map((batch) => batch.medicine_name.toLowerCase()))];
+      const stockResults = await Promise.all(medicines.map((name) => api(`/search?name=${encodeURIComponent(name)}`)));
+      document.getElementById('total-batches').textContent = batches.length; document.getElementById('medicine-count').textContent = medicines.length; document.getElementById('sellable-stock').textContent = stockResults.reduce((sum, item) => sum + item.sellable_quantity, 0);
+      const renderRows = (items, includeQuantity = true) => items.map((batch) => { const currentDate = new Date(); const expiry = new Date(`${batch.expiry_date}T23:59:59`); const expiresSoon = new Date(currentDate.getTime() + 7 * 86400000); const expired = expiry < currentDate; const expiringSoon = !batch.quarantined && !expired && expiry <= expiresSoon; const status = batch.quarantined ? 'Quarantined' : expired ? 'Expired' : 'Sellable'; const statusClass = batch.quarantined ? 'quarantined' : expired ? 'expired' : 'sellable'; return `<tr class="${expiringSoon ? 'expiring-soon' : ''}"><td>${escapeHtml(batch.batch_id)}</td><td>${escapeHtml(batch.medicine_name)}</td><td>${escapeHtml(batch.expiry_date)}${expiringSoon ? '<span class="expiry-hint">Due soon</span>' : ''}</td>${includeQuantity ? `<td>${batch.quantity}</td>` : ''}<td><span class="status ${statusClass}">${status}</span></td></tr>`; }).join('');
+      const inventoryTable = document.getElementById('inventory-table'); const dashboardTable = document.getElementById('dashboard-table'); inventoryTable.hidden = batches.length === 0; dashboardTable.hidden = batches.length === 0; inventoryTable.querySelector('tbody').innerHTML = renderRows(batches); dashboardTable.querySelector('tbody').innerHTML = renderRows(batches.slice(0, 5), false);
+      document.getElementById('inventory-empty').hidden = batches.length !== 0; document.getElementById('dashboard-empty').hidden = batches.length !== 0;
     }
-    document.getElementById('add-form').addEventListener('submit', async (event) => { event.preventDefault(); if (!event.target.reportValidity()) return; try { await api('/batches', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(formData(event.target))}); event.target.reset(); showMessage('Batch added successfully.'); await refreshInventory(); navigate('inventory'); } catch (error) { showMessage(error.message, true); } });
-    document.getElementById('dispense-form').addEventListener('submit', async (event) => { event.preventDefault(); if (!event.target.reportValidity()) return; try { const data = await api('/dispense', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(formData(event.target))}); printResult('dispense-result', data); showMessage('Medicine dispensed successfully.'); await refreshInventory(); } catch (error) { showMessage(error.message, true); printResult('dispense-result', {error:error.message}); } });
+    document.getElementById('add-form').addEventListener('submit', async (event) => { event.preventDefault(); if (!event.target.reportValidity()) return; try { await api('/batches', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(formData(event.target))}); event.target.reset(); showSuccessAnimation(event.target); showMessage('Batch added successfully.'); await refreshInventory(); navigate('inventory'); } catch (error) { showMessage(error.message, true); } });
+    document.getElementById('dispense-form').addEventListener('submit', async (event) => { event.preventDefault(); if (!event.target.reportValidity()) return; try { const data = await api('/dispense', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(formData(event.target))}); printResult('dispense-result', data); showSuccessAnimation(event.target); showMessage('Medicine dispensed successfully.'); await refreshInventory(); } catch (error) { showMessage(error.message, true); printResult('dispense-result', {error:error.message}); } });
     document.getElementById('search-form')?.addEventListener('submit', async (event) => { event.preventDefault(); try { printResult('search-result', await api(`/search?name=${encodeURIComponent(new FormData(event.target).get('name'))}`)); } catch (error) { printResult('search-result', {error:error.message}); } });
-    document.getElementById('alerts-form').addEventListener('submit', async (event) => { event.preventDefault(); if (!event.target.reportValidity()) return; try { printResult('alerts-result', await api(`/alerts?days=${Number(new FormData(event.target).get('days'))}`)); } catch (error) { printResult('alerts-result', {error:error.message}); } });
+    document.getElementById('alerts-form').addEventListener('submit', async (event) => { event.preventDefault(); if (!event.target.reportValidity()) return; try { const result = await api(`/alerts?days=${Number(new FormData(event.target).get('days'))}`); printResult('alerts-result', result); const badge = document.getElementById('expiry-alert-badge'); badge.hidden = result.batches.length === 0; badge.textContent = result.batches.length ? `${result.batches.length} alert${result.batches.length === 1 ? '' : 's'}` : ''; } catch (error) { printResult('alerts-result', {error:error.message}); } });
     document.getElementById('clock-form').addEventListener('submit', async (event) => { event.preventDefault(); try { const value = new FormData(event.target).get('today'); printResult('clock-result', await request('/clock', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(value ? {today:value} : {})})); await refreshInventory(); showMessage('Expiry monitoring completed.'); } catch (error) { printResult('clock-result', {error:error.message}); showMessage(error.message, true); } });
     document.getElementById('import-form').addEventListener('submit', async (event) => { event.preventDefault(); try { const records = JSON.parse(new FormData(event.target).get('records')); printResult('import-result', await api('/import', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(records)})); await refreshInventory(); showMessage('Import completed.'); } catch (error) { printResult('import-result', {error:error.message}); showMessage(error.message, true); } });
     document.getElementById('threshold-form').addEventListener('submit', async (event) => { event.preventDefault(); if (!event.target.reportValidity()) return; const values = Object.fromEntries(new FormData(event.target)); values.threshold = Number(values.threshold); try { printResult('outbox-result', await api('/reorder-thresholds', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(values)})); showMessage('Reorder threshold saved.'); } catch (error) { printResult('outbox-result', {error:error.message}); showMessage(error.message, true); } });
